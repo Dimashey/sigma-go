@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/Dimashey/sigma-go/server/items"
 )
 
 var logChannel = make(chan string, 100)
@@ -31,17 +33,42 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	go startLogger()
 
-  go startLogger()
+	itemsTransport := items.NewTransport()
 
-  http.HandleFunc("/", handler)
+	http.HandleFunc("/", handler)
 
-  port := ":8080"
-  log.Printf("Starting server on %s\n", port)
 
-  err := http.ListenAndServe(port, nil)
+	http.HandleFunc("/v1/items", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			itemsTransport.Create(w, r)
+		case http.MethodGet:
+      itemsTransport.GetMany(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
-  if err != nil {
-    log.Fatalf("Server failed: %v\n", err)
-  }
+	http.HandleFunc("/v1/items/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+      itemsTransport.GetOne(w, r)
+		case http.MethodPut:
+      itemsTransport.Update(w, r)
+		case http.MethodDelete:
+      itemsTransport.Delete(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	port := ":8080"
+	log.Printf("Starting server on %s\n", port)
+
+	err := http.ListenAndServe(port, nil)
+	if err != nil {
+		log.Fatalf("Server failed: %v\n", err)
+	}
 }
